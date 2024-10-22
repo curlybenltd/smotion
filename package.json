@@ -1,0 +1,16 @@
+{
+  "name": "smotion",
+  "module": "index.ts",
+  "type": "module",
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^15.7.4",
+    "@types/bun": "latest",
+    "signal-utils": "^0.20.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "signal-polyfill": "^0.2.1"
+  }
+}
