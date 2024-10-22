@@ -1,5 +1,5 @@
 {
-  "name": "smotion",
+  "name": "@curlyben/smotion",
   "module": "index.ts",
   "type": "module",
   "devDependencies": {
