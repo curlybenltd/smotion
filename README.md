@@ -15,13 +15,13 @@ import { Animator } from "@curlyben/smotion"
 const ani = new Animator()
 
 ani.addTrack({
-  keyframes: [{ time: 0 }, { time: 1000 }],
+  keyframes: [{ name: "move it!", time: 0 }, { time: 1000 }],
 })
 
 const widget = document.querySelector("#widget")
 
 reaction(
-    () => ani.tracks[0].frames[0].$value.get() * 100,
+    () => ani.$val("move it!"),
     (percent) => widget.style.left = `${percent}px`
 )
 

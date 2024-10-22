@@ -1,6 +1,7 @@
 import { Signal } from "signal-polyfill";
 
 export type Keyframe = {
+    name?: string;
     $time: Signal.State<number>;
     $value: Signal.State<number>;
 };
@@ -12,21 +13,24 @@ export type Track = {
 
 export type TrackData = {
     name?: string;
-    keyframes: { time: number }[];
+    keyframes: { name?: string; time: number }[];
 };
 
 export class Animator {
     readonly tracks: Track[] = [];
-    private lastPlayheadPosition = 0;
+    #lastPosition = 0;
 
-    readonly playing = new Signal.State(false);
-    readonly playheadPosition = new Signal.State(0);
-    readonly duration = new Signal.State(3000);
-    readonly loopPlayback = new Signal.State(false);
+    readonly $playing = new Signal.State(false);
+    readonly $position = new Signal.State(0);
+    readonly $duration = new Signal.State(3000);
+    readonly $loop = new Signal.State(false);
 
     onRequestAnimationFrame?: () => void;
     onReset?: () => void;
-    onEnterFrame?: (args: { trackIndex: number, keyframeIndex: number }) => void;
+    onEnterFrame?: (args: {
+        trackIndex: number;
+        keyframeIndex: number;
+    }) => void;
     onTracksChanged?: () => void;
 
     constructor(opts?: {
@@ -37,7 +41,7 @@ export class Animator {
         onTracksChanged?: () => void;
     }) {
         if (opts?.duration) {
-            this.duration.set(opts.duration);
+            this.$duration.set(opts.duration);
         }
         this.onRequestAnimationFrame = opts?.onRequestAnimationFrame;
         this.onReset = opts?.onReset;
@@ -48,7 +52,8 @@ export class Animator {
     addTrack(track: TrackData) {
         const newTrack: Track = {
             name: track.name || `track${this.tracks.length}`,
-            keyframes: track.keyframes.map((keyframe) => ({
+            keyframes: track.keyframes.map((keyframe, i) => ({
+                name: keyframe.name || `keyframe${i}`,
                 $time: new Signal.State(keyframe.time),
                 $value: new Signal.State(0),
             })),
@@ -59,28 +64,48 @@ export class Animator {
         }
     }
 
+    $val(nameOrIndex: [trackIndex: number, keyframeIndex: number] | string) {
+        let result: number | undefined;
+        if (typeof nameOrIndex === "string") {
+            result = this.tracks
+                .flatMap((t) => t.keyframes)
+                .find((k) => k.name === nameOrIndex)
+                ?.$value.get();
+        } else {
+            const [trackIndex, keyframeIndex] = nameOrIndex;
+            result = this.tracks
+                .at(trackIndex)
+                ?.keyframes.at(keyframeIndex)
+                ?.$value.get();
+        }
+        if (result === undefined) {
+            throw new Error(`No keyframe found at index ${nameOrIndex}`);
+        }
+        return result;
+    }
+
     play() {
         let atEnd = false;
-        this.playing.set(true);
-        const start = performance.now() - this.playheadPosition.get();
+        this.$playing.set(true);
+        const start = performance.now() - this.$position.get();
         const loop = (time: number) => {
-            this.lastPlayheadPosition = this.playheadPosition.get();
-            if (!this.playing.get()) {
+            this.#lastPosition = this.$position.get();
+            if (!this.$playing.get()) {
                 return;
             }
-            this.playheadPosition.set(time - start);
+            this.$position.set(time - start);
             this.processKeyframes();
             this.processFrames();
-            if (this.playheadPosition.get() >= this.duration.get()) {
+            if (this.$position.get() >= this.$duration.get()) {
                 atEnd = true;
-                this.playheadPosition.set(this.duration.get());
-                this.playing.set(this.loopPlayback.get());
-                this.playing.set(false);
+                this.$position.set(this.$duration.get());
+                this.$playing.set(this.$loop.get());
+                this.$playing.set(false);
             }
             if (this.onRequestAnimationFrame) {
                 this.onRequestAnimationFrame();
             }
-            if (this.loopPlayback.get() && atEnd) {
+            if (this.$loop.get() && atEnd) {
                 this.reset();
                 this.play();
             } else {
@@ -91,12 +116,12 @@ export class Animator {
     }
 
     pause() {
-        this.playing.set(false);
+        this.$playing.set(false);
     }
 
     reset() {
-        this.playing.set(false);
-        this.playheadPosition.set(0);
+        this.$playing.set(false);
+        this.$position.set(0);
         if (this.onReset) {
             this.onReset();
         }
@@ -104,12 +129,16 @@ export class Animator {
     }
 
     toggleLoop() {
-        this.loopPlayback.set(!this.loopPlayback.get());
+        this.$loop.set(!this.$loop.get());
     }
 
     processKeyframes(dispatchEvents = true) {
-        for (let trackIndex = 0; trackIndex < this.tracks.length; trackIndex++) {
-            const track = this.tracks[trackIndex]
+        for (
+            let trackIndex = 0;
+            trackIndex < this.tracks.length;
+            trackIndex++
+        ) {
+            const track = this.tracks[trackIndex];
             for (
                 let keyframeIndex = 0;
                 keyframeIndex < track.keyframes.length;
@@ -117,12 +146,12 @@ export class Animator {
             ) {
                 const keyframe = track.keyframes[keyframeIndex];
                 if (
-                    keyframe.$time.get() >= this.lastPlayheadPosition &&
-                    keyframe.$time.get() <= this.playheadPosition.get()
+                    keyframe.$time.get() >= this.#lastPosition &&
+                    keyframe.$time.get() <= this.$position.get()
                 ) {
                     // TODO: dispatch event
                     if (dispatchEvents && this.onEnterFrame) {
-                        this.onEnterFrame({ trackIndex, keyframeIndex })
+                        this.onEnterFrame({ trackIndex, keyframeIndex });
                     }
                 }
             }
@@ -137,11 +166,11 @@ export class Animator {
                 const inKeyframe = track.keyframes[ki];
                 const outKeyframe = track.keyframes.at(ki + 1);
 
-                if (inKeyframe.$time.get() > this.playheadPosition.get()) {
+                if (inKeyframe.$time.get() > this.$position.get()) {
                     // TODO: ensure this frame is at 0
                     inKeyframe.$value.set(0);
                 }
-                if (inKeyframe.$time.get() < this.playheadPosition.get()) {
+                if (inKeyframe.$time.get() < this.$position.get()) {
                     // TODO: ensure this frame is at 1
                     inKeyframe.$value.set(1);
                 }
@@ -150,12 +179,14 @@ export class Animator {
                     continue;
                 }
                 if (
-                    inKeyframe.$time.get() <= this.playheadPosition.get() &&
-                    outKeyframe.$time.get() >= this.playheadPosition.get()
+                    inKeyframe.$time.get() <= this.$position.get() &&
+                    outKeyframe.$time.get() >= this.$position.get()
                 ) {
-                    const range = outKeyframe.$time.get() - inKeyframe.$time.get();
+                    const range =
+                        outKeyframe.$time.get() - inKeyframe.$time.get();
                     const progress =
-                        (this.playheadPosition.get() - inKeyframe.$time.get()) / range;
+                        (this.$position.get() - inKeyframe.$time.get()) /
+                        range;
                     inKeyframe.$value.set(progress);
                 }
             }
