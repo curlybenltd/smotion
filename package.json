@@ -1,6 +1,8 @@
 {
   "name": "@curlyben/smotion",
   "module": "index.ts",
+  "version": "0.0.1",
+  "private":"false",
   "type": "module",
   "devDependencies": {
     "@happy-dom/global-registrator": "^15.7.4",
