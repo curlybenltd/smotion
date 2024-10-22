@@ -1,5 +1,11 @@
 # smotion
 
+_Note: this package is prerelease, no bundles are built yet!_
+
+```bash
+bun add @curlyben/smotion
+```
+
 smotion is a low level web animation library that drives [signals](https://github.com/proposal-signals/signal-polyfill).
 
 ```typescript
