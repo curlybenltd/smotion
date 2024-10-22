@@ -11,10 +11,36 @@ export type Track = {
     keyframes: Keyframe[];
 };
 
+export type FrameData = {
+    name?: string;
+    time: number;
+};
+
 export type TrackData = {
     name?: string;
-    keyframes: { name?: string; time: number }[];
+    keyframes: FrameData[];
 };
+
+type AnimatorConstructorOpts = {
+    play?: boolean;
+    loop?: boolean;
+    duration?: number;
+
+    onRequestAnimationFrame?: () => void;
+    onReset?: () => void;
+    onEnterFrame?: () => void;
+    onTracksChanged?: () => void;
+};
+
+export type AnimatorConstructorOptsTracks = {
+    tracks: TrackData[];
+    keyframes: never;
+} & AnimatorConstructorOpts;
+
+export type AnimatorConstructorOptsKeyframes = {
+    tracks: never;
+    keyframes: FrameData[];
+} & AnimatorConstructorOpts;
 
 export class Animator {
     readonly tracks: Track[] = [];
@@ -33,20 +59,41 @@ export class Animator {
     }) => void;
     onTracksChanged?: () => void;
 
-    constructor(opts?: {
-        duration?: number;
-        onRequestAnimationFrame?: () => void;
-        onReset?: () => void;
-        onEnterFrame?: () => void;
-        onTracksChanged?: () => void;
-    }) {
-        if (opts?.duration) {
-            this.$duration.set(opts.duration);
-        }
+    constructor(
+        opts?:
+            | AnimatorConstructorOpts
+            | AnimatorConstructorOptsTracks
+            | AnimatorConstructorOptsKeyframes
+    ) {
         this.onRequestAnimationFrame = opts?.onRequestAnimationFrame;
         this.onReset = opts?.onReset;
         this.onEnterFrame = opts?.onEnterFrame;
         this.onTracksChanged = opts?.onTracksChanged;
+
+        if (opts && "tracks" in opts) {
+            for (const track of opts.tracks) {
+                this.addTrack(track);
+            }
+        }
+        if (opts && "keyframes" in opts) {
+            this.addTrack({
+                keyframes: opts.keyframes,
+            });
+        }
+        // TODO: typescript struggling to narrow this correctly, if we do it first it doesn't infer tracks/keyframes
+        if (opts && "tracks" in opts && "keyframes" in opts) {
+            throw new Error("Cannot specify both tracks and keyframes");
+        }
+
+        if (opts?.loop) {
+            this.$loop.set(opts.loop);
+        }
+        if (opts?.duration) {
+            this.$duration.set(opts.duration);
+        }
+        if (opts?.play) {
+            this.play();
+        }
     }
 
     addTrack(track: TrackData) {
@@ -185,8 +232,7 @@ export class Animator {
                     const range =
                         outKeyframe.$time.get() - inKeyframe.$time.get();
                     const progress =
-                        (this.$position.get() - inKeyframe.$time.get()) /
-                        range;
+                        (this.$position.get() - inKeyframe.$time.get()) / range;
                     inKeyframe.$value.set(progress);
                 }
             }

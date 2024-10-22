@@ -127,7 +127,7 @@ test("drives a frame value from 0 to 1", async () => {
 test("there is a $val method that drives a keyframe value signal", async () => {
     const s = new lib.Animator({ duration: 200 });
     s.addTrack({
-        keyframes: [{ name: "move it", time: 0 }, { time: 100 }],
+        keyframes: [{ name: "move it!", time: 0 }, { time: 100 }],
     });
 
     expect(s.$val([0, 0])).toBe(0);
@@ -140,4 +140,61 @@ test("there is a $val method that drives a keyframe value signal", async () => {
     s.play();
     await when(() => s.$playing.get() === false);
     expect(s.$val("move it!") === 1);
+});
+
+test("it can automatically play", async () => {
+    const s = new lib.Animator({ duration: 200, play: true });
+    s.addTrack({
+        keyframes: [{ time: 0 }, { time: 100 }],
+    });
+
+    await when(() => s.$playing.get() === false);
+    expect(s.tracks[0].keyframes[0].$value.get() === 1);
+});
+
+test("it can automatically loop", async () => {
+    const { resolve, promise } = Promise.withResolvers();
+    const reset = mock(() => {
+        resolve();
+    });
+    const s = new lib.Animator({
+        duration: 200,
+        loop: true,
+        play: true,
+        onReset: reset,
+    });
+    s.addTrack({
+        keyframes: [{ time: 0 }, { time: 100 }],
+    });
+
+    await promise;
+    expect(reset).toBeCalled();
+    s.$loop.set(false);
+
+    await when(() => s.$playing.get() === false);
+    expect(s.tracks[0].keyframes[0].$value.get() === 1);
+});
+
+test("it can be constructed with tracks", async () => {
+    const s = new lib.Animator({
+        duration: 200,
+        tracks: [{ keyframes: [{ time: 0 }, { time: 100 }] }],
+    });
+
+    expect(s.tracks[0].keyframes[0].$value.get()).toBe(0);
+    s.play();
+    await when(() => s.$playing.get() === false);
+    expect(s.tracks[0].keyframes[0].$value.get() === 1);
+});
+
+test("it can be constructed with keyframes", async () => {
+    const s = new lib.Animator({
+        duration: 200,
+        keyframes: [{ time: 0 }, { time: 100 }],
+    });
+
+    expect(s.tracks[0].keyframes[0].$value.get()).toBe(0);
+    s.play();
+    await when(() => s.$playing.get() === false);
+    expect(s.tracks[0].keyframes[0].$value.get() === 1);
 });
